@@ -76,9 +76,21 @@ class FileSystemPickerScreen(ModalScreen[ReturnType]): # MODIFIED: Updated gener
             color: $text-muted; /* Optional: make it less prominent */
         }
 
-        DirectoryNavigation {
+        /* MODIFIED: Horizontal container for directory/drive navigation should take flexible space */
+        #fsp-content-area {
             height: 1fr;
         }
+
+        /* MODIFIED: DirectoryNavigation should fill its parent within fsp-content-area */
+        #fsp-content-area > DirectoryNavigation {
+            height: 100%;
+            width: 1fr; /* Take remaining width if DriveNavigation is present */
+        }
+        /* Ensure DriveNavigation also fills height correctly if present, its own CSS already has height: 100% */
+        #fsp-content-area > DriveNavigation {
+            height: 100%;
+        }
+
 
         InputBar {
             height: auto;
@@ -152,7 +164,8 @@ class FileSystemPickerScreen(ModalScreen[ReturnType]): # MODIFIED: Updated gener
         with Dialog() as dialog:
             dialog.border_title = self._title
             yield Label(id="current_path_display")
-            with Horizontal():
+            # MODIFIED: Added ID to the Horizontal container
+            with Horizontal(id="fsp-content-area"):
                 if sys.platform == "win32":
                     yield DriveNavigation(self._location)
                 yield DirectoryNavigation(self._location)
@@ -213,6 +226,4 @@ class FileSystemPickerScreen(ModalScreen[ReturnType]): # MODIFIED: Updated gener
     def _action_hidden(self) -> None:
         """Action for toggling the display of hidden entries."""
         self.query_one(DirectoryNavigation).toggle_hidden()
-
-
 ### base_dialog.py ends here

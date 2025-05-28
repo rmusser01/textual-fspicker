@@ -42,10 +42,10 @@ class BaseFileDialog(FileSystemPickerScreen):
     """The base dialog for file-oriented picking dialogs."""
 
     DEFAULT_CSS = """
-        FileSystemPickerScreen {
+        FileSystemPickerScreen { /* This targets the FileSystemPickerScreen instance (e.g. BaseFileDialog) */
             align: center middle;
 
-            Dialog {
+            Dialog { /* Targets Dialog widgets that are descendants of the FileSystemPickerScreen instance */
                 width: 80%;
                 height: 80%;
                 border: $border;
@@ -53,7 +53,7 @@ class BaseFileDialog(FileSystemPickerScreen):
                 /* ... other Dialog styles ... */
             }
 
-            #current_path_display {
+            #current_path_display { /* Targets Label#current_path_display descendant of FSPS */
                 width: 1fr;
                 padding: 0 1;
                 margin-bottom: 1;
@@ -61,19 +61,31 @@ class BaseFileDialog(FileSystemPickerScreen):
                 text-overflow: ellipsis;
                 color: $text-muted;
             }
-
-            DirectoryNavigation {
+            
+            /* MODIFIED: Horizontal container for directory/drive navigation should take flexible space */
+            /* This rule applies to #fsp-content-area if it's a descendant of FSPS */
+            #fsp-content-area {
                 height: 1fr;
             }
 
-            InputBar {
-                /* height: auto; Original value */
-                min-height: 3; /* MODIFIED: Force a min-height (typical button height + padding) */
-                height: auto;  /* Can keep auto, min-height will ensure it's at least this */
+            /* MODIFIED: DirectoryNavigation should fill its parent within fsp-content-area */
+            /* This rule applies to DirectoryNavigation if it's a descendant of #fsp-content-area, itself descendant of FSPS */
+            #fsp-content-area > DirectoryNavigation {
+                height: 100%;
+                width: 1fr; /* Take remaining width if DriveNavigation is present */
+            }
+            /* Ensure DriveNavigation also fills height correctly if present */
+            #fsp-content-area > DriveNavigation {
+                height: 100%;
+            }
+
+            InputBar { /* Targets InputBar descendant of FSPS */
+                min-height: 3; 
+                height: auto; 
                 align: right middle;
                 padding-top: 1;
                 padding-right: 1;
-                padding-bottom: 1; /* Total vertical padding is 2 */
+                padding-bottom: 1; 
                 Button {
                     margin-left: 1;
                 }
@@ -118,13 +130,9 @@ class BaseFileDialog(FileSystemPickerScreen):
         self._allow_multiple = allow_multiple # MODIFIED: Store allow_multiple
 
     def _input_bar(self) -> ComposeResult:
-        """Provide any widgets for the input before, before the buttons."""
-
-        # MODIFIED: Conditionally yield the Input widget
-        if not self._allow_multiple:
-            # Only yield the filename input if not in multiple selection mode
-            yield Input(Path(self._default_file or "").name)
-        # If self._allow_multiple is True, the Input widget for the filename is not yielded at all.
+        """Provide any widgets for the input bar, before the buttons."""
+        if not self._allow_multiple: # Only yield Input if not in multi-select mode
+            yield Input(Path(self._default_file or "").name, id="filename_input")
 
         if self._filters:
             yield FileFilter(
@@ -132,35 +140,30 @@ class BaseFileDialog(FileSystemPickerScreen):
                 prompt="File filter",
                 value=0,
                 allow_blank=False,
+                id="file_filter_select" # Give it an ID for potential specific styling
             )
 
     @on(Mount)
-    @on(Mount)
-    def _configure_navigation_on_mount(self) -> None:
+    def _configure_navigation_on_mount(self) -> None: # Renamed from _configure_navigation_on_mount to avoid clash if super has it.
         """Set the initial filter and allow_multiple for DirectoryNavigation."""
+        # Call super on_mount if FileSystemPickerScreen's on_mount needs to run first for BaseFileDialog instances.
+        # FileSystemPickerScreen.on_mount focuses DirectoryNavigation and sets path display.
+        # BaseFileDialog specific setup:
         dir_nav = self.query_one(DirectoryNavigation)
         if self._filters:
             dir_nav.file_filter = self._filters[0]
         dir_nav.allow_multiple = self._allow_multiple
 
         if self._allow_multiple:
-            dir_nav.focus()
+            # In multi-select, DirectoryNavigation should have focus (already done by super().on_mount())
+            pass
         else:
             # In single-select mode, try to focus the filename input.
-            # If it's not there or focus fails, DirectoryNavigation should get focus
-            # (which might already be the case from FileSystemPickerScreen.on_mount).
             try:
                 filename_input_widget = self.query_one("#filename_input", Input)
                 filename_input_widget.focus()
-            except NoMatches:  # Corrected error type
-                # If #filename_input doesn't exist, ensure dir_nav is focused.
-                # FileSystemPickerScreen.on_mount already focuses DirectoryNavigation.
-                # So, this explicit focus might only be needed if super().on_mount()
-                # behavior changes or isn't called by a subclass.
-                # For now, assuming DirectoryNavigation is already focused by the superclass
-                # if #filename_input is not present.
-                # If not, uncomment:
-                # dir_nav.focus()
+            except NoMatches:
+                # If #filename_input doesn't exist, DirectoryNavigation (focused by super().on_mount()) keeps focus.
                 pass
 
     @on(DirectoryNavigation.Selected)
