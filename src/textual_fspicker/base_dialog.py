@@ -8,7 +8,7 @@ from __future__ import annotations
 # Python imports.
 import sys
 from pathlib import Path
-from typing import Callable, TypeAlias
+from typing import Callable, TypeAlias, Union, List
 
 ##############################################################################
 # Textual imports.
@@ -38,9 +38,13 @@ class InputBar(Horizontal):
 ButtonLabel: TypeAlias = str | Callable[[str], str]
 """The type for a button label value."""
 
+# MODIFIED: Updated ReturnType for FileSystemPickerScreen
+ReturnType: TypeAlias = Union[Path, List[Path], None]
+"""The possible return types from the dialog."""
+
 
 ##############################################################################
-class FileSystemPickerScreen(ModalScreen[Path | None]):
+class FileSystemPickerScreen(ModalScreen[ReturnType]): # MODIFIED: Updated generic type
     """Base screen for the dialogs in this library."""
 
     DEFAULT_CSS = """
@@ -59,7 +63,7 @@ class FileSystemPickerScreen(ModalScreen[Path | None]):
 
             OptionList, OptionList:focus {
                 background: $panel;
-                background-tint: $panel;
+                background-tint: $panel; /* Ensure this works as expected, or use $primary-background */
             }
         }
 

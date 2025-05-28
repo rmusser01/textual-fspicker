@@ -7,6 +7,7 @@ from __future__ import annotations
 ##############################################################################
 # Python imports.
 from pathlib import Path
+from typing import Union, List
 
 ##############################################################################
 # Textual imports.
@@ -25,19 +26,25 @@ class TestApp(App[None]):
     """A simple test application."""
 
     CSS = """
-    Screen#_default {
+    Screen#_default { /* MODIFIED: Changed from Screen to Screen#_default for specificity */
         align: center middle;
+    } /* MODIFIED: Added closing brace */
 
-        Horizontal {
-            align: center middle;
-            height: auto;
-            margin-bottom: 1;
-        }
+    Horizontal {
+        align: center middle;
+        height: auto;
+        margin-bottom: 1;
+    }
 
-        Horizontal Button {
-            margin-left: 1;
-            margin-right: 1;
-        }
+    Horizontal Button {
+        margin-left: 1;
+        margin-right: 1;
+    }
+
+    /* MODIFIED: Ensure Label in Center can wrap text */
+    Center > Label {
+        width: 80%;
+        text-align: center;
     }
     """
 
@@ -51,13 +58,24 @@ class TestApp(App[None]):
             yield Label("Press the button to pick something")
         yield Footer()
 
-    def show_selected(self, to_show: Path | None) -> None:
+    def show_selected(self, to_show: Union[Path, List[Path], None]) -> None:
         """Show the file that was selected by the user.
 
         Args:
             to_show: The file to show.
         """
-        self.query_one(Label).update("Cancelled" if to_show is None else str(to_show))
+        label = self.query_one("Screen#_default > Center > Label", Label) # More specific query
+        if to_show is None:
+            label.update("Cancelled")
+        elif isinstance(to_show, list):
+            # MODIFIED: Handle list of paths
+            if to_show:
+                paths_str = "\n".join(str(p) for p in to_show)
+                label.update(f"Selected files:\n{paths_str}")
+            else:
+                label.update("No files selected (empty list).") # Should ideally not happen if dialog prevents
+        else: # It's a single Path
+            label.update(str(to_show))
 
     @on(Button.Pressed, "#open")
     def open_file(self) -> None:
@@ -75,6 +93,8 @@ class TestApp(App[None]):
                     ("C", lambda p: p.suffix.lower() in (".c", ".h")),
                     ("C++", lambda p: p.suffix.lower() in (".cpp", ".cc", ".h")),
                 ),
+                allow_multiple=True, # MODIFIED: Enable multiple selection
+                # must_exist=True # Default is True
             ),
             callback=self.show_selected,
         )
