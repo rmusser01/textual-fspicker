@@ -187,8 +187,8 @@ class BaseFileDialog(FileSystemPickerScreen):
                         try:
                             drive_nav = self.query_one(DriveNavigation)
                             drive_nav.drive = drive_letter
-                        except Exception: # QueryError if not present
-                            pass # Silently ignore if DriveNavigation isn't there (e.g. non-Windows)
+                        except Exception:  # QueryError if not present
+                            pass  # Silently ignore if DriveNavigation isn't there (e.g. non-Windows)
                 self.query_one(DirectoryNavigation).location = chosen
                 self.query_one(DirectoryNavigation).focus()
                 self.query_one(Input).value = ""
