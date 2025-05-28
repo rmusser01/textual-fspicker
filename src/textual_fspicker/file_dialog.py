@@ -29,12 +29,7 @@ from .path_maker import MakePath
 
 ##############################################################################
 class FileFilter(Select[int]):
-    """The file type filtering widget.
-
-    This widget provides a file filter drop-down selection for all dialogs
-    that inherit from
-    [`BaseFileDialog`][textual_fspicker.file_dialog.BaseFileDialog].
-    """
+    """The file type filtering widget."""
 
 
 ##############################################################################
@@ -42,56 +37,57 @@ class BaseFileDialog(FileSystemPickerScreen):
     """The base dialog for file-oriented picking dialogs."""
 
     DEFAULT_CSS = """
-        FileSystemPickerScreen { /* This targets the FileSystemPickerScreen instance (e.g. BaseFileDialog) */
-            align: center middle;
+        BaseFileDialog > Dialog {
+            width: 80%;
+            height: 80%;
+            /* background: $panel; Reverted from purple */
+            padding: 1; 
+        }
 
-            Dialog { /* Targets Dialog widgets that are descendants of the FileSystemPickerScreen instance */
-                width: 80%;
-                height: 80%;
-                border: $border;
-                background: $panel;
-                /* ... other Dialog styles ... */
-            }
+        BaseFileDialog > Dialog > #current_path_display {
+            dock: top; 
+            height: 2; 
+            width: 1fr;
+            padding: 0 1; 
+            margin-bottom: 1; 
+            /* background: $panel; Reverted from orange */
+            overflow: hidden;
+            text-overflow: ellipsis;
+            color: $text-muted; /* Ensure this is visible against panel */
+        }
+        
+        BaseFileDialog > Dialog > #fsp-content-area {
+            width: 1fr; 
+            /* background: $panel; Reverted from red */
+        }
 
-            #current_path_display { /* Targets Label#current_path_display descendant of FSPS */
-                width: 1fr;
-                padding: 0 1;
-                margin-bottom: 1;
-                overflow: hidden;
-                text-overflow: ellipsis;
-                color: $text-muted;
-            }
+        BaseFileDialog > Dialog > #fsp-content-area > DirectoryNavigation {
+            height: 100%; 
+            width: 1fr; 
+            /* background: $panel; Reverted from green */
+        }
+        
+        BaseFileDialog > Dialog > #fsp-content-area > DriveNavigation {
+            height: 100%; 
+            /* background: $panel; Reverted from blue */
+        }
+
+        BaseFileDialog > Dialog > InputBar { 
+            dock: bottom; 
+            height: 3; 
+            width: 1fr;
+            padding-top: 1; 
+            /* background: $panel; Reverted from yellow */
+            align: right middle; 
             
-            /* MODIFIED: Horizontal container for directory/drive navigation should take flexible space */
-            /* This rule applies to #fsp-content-area if it's a descendant of FSPS */
-            #fsp-content-area {
-                height: 1fr;
+            Button {
+                margin-left: 1;
             }
-
-            /* MODIFIED: DirectoryNavigation should fill its parent within fsp-content-area */
-            /* This rule applies to DirectoryNavigation if it's a descendant of #fsp-content-area, itself descendant of FSPS */
-            #fsp-content-area > DirectoryNavigation {
-                height: 100%;
-                width: 1fr; /* Take remaining width if DriveNavigation is present */
-            }
-            /* Ensure DriveNavigation also fills height correctly if present */
-            #fsp-content-area > DriveNavigation {
-                height: 100%;
-            }
-
-            InputBar { /* Targets InputBar descendant of FSPS */
-                min-height: 3; 
-                height: auto; 
-                align: right middle;
-                padding-top: 1;
-                padding-right: 1;
-                padding-bottom: 1; 
-                Button {
-                    margin-left: 1;
-                }
+            FileFilter { 
+                max-height: 1;
             }
         }
-        """
+    """
 
     ERROR_A_FILE_MUST_BE_CHOSEN = "A file must be chosen"
     ERROR_NO_FILES_SELECTED = "No files selected"
@@ -108,30 +104,17 @@ class BaseFileDialog(FileSystemPickerScreen):
         *,
         filters: Filters | None = None,
         default_file: str | Path | None = None,
-        allow_multiple: bool = False, # MODIFIED: Added allow_multiple
+        allow_multiple: bool = False,
     ) -> None:
-        """Initialise the base dialog.
-
-        Args:
-            location: Optional starting location.
-            title: Optional title.
-            select_button: The label for the select button.
-            cancel_button: The label for the cancel button.
-            filters: Optional filters to show in the dialog.
-            default_file: The default filename to place in the input.
-            allow_multiple: Allow selection of multiple files.
-        """
         super().__init__(
             location, title, select_button=select_button, cancel_button=cancel_button
         )
         self._filters = filters
-        """The filters for the dialog."""
         self._default_file = default_file
-        self._allow_multiple = allow_multiple # MODIFIED: Store allow_multiple
+        self._allow_multiple = allow_multiple
 
     def _input_bar(self) -> ComposeResult:
-        """Provide any widgets for the input bar, before the buttons."""
-        if not self._allow_multiple: # Only yield Input if not in multi-select mode
+        if not self._allow_multiple:
             yield Input(Path(self._default_file or "").name, id="filename_input")
 
         if self._filters:
@@ -140,40 +123,27 @@ class BaseFileDialog(FileSystemPickerScreen):
                 prompt="File filter",
                 value=0,
                 allow_blank=False,
-                id="file_filter_select" # Give it an ID for potential specific styling
+                id="file_filter_select"
             )
 
     @on(Mount)
-    def _configure_navigation_on_mount(self) -> None: # Renamed from _configure_navigation_on_mount to avoid clash if super has it.
-        """Set the initial filter and allow_multiple for DirectoryNavigation."""
-        # Call super on_mount if FileSystemPickerScreen's on_mount needs to run first for BaseFileDialog instances.
-        # FileSystemPickerScreen.on_mount focuses DirectoryNavigation and sets path display.
-        # BaseFileDialog specific setup:
+    def _configure_navigation_on_mount(self) -> None:
         dir_nav = self.query_one(DirectoryNavigation)
         if self._filters:
             dir_nav.file_filter = self._filters[0]
         dir_nav.allow_multiple = self._allow_multiple
 
         if self._allow_multiple:
-            # In multi-select, DirectoryNavigation should have focus (already done by super().on_mount())
             pass
         else:
-            # In single-select mode, try to focus the filename input.
             try:
                 filename_input_widget = self.query_one("#filename_input", Input)
                 filename_input_widget.focus()
             except NoMatches:
-                # If #filename_input doesn't exist, DirectoryNavigation (focused by super().on_mount()) keeps focus.
                 pass
 
     @on(DirectoryNavigation.Selected)
     def _select_file(self, event: DirectoryNavigation.Selected) -> None:
-        """Handle a file being selected in the picker.
-
-        Args:
-            event: The event to handle.
-        """
-        # Only update filename input if not in multi-select mode
         if not self._allow_multiple:
             try:
                 file_name_input = self.query_one("#filename_input", Input)
@@ -182,18 +152,12 @@ class BaseFileDialog(FileSystemPickerScreen):
             except NoMatches:
                 pass
 
-    @on(Input.Changed, "#filename_input") # Only if #filename_input exists and changes
+    @on(Input.Changed, "#filename_input")
     def _clear_error_on_input_change(self) -> None:
-        """Clear any error that might be showing when filename input changes."""
-        super()._clear_error() # From FileSystemPickerScreen
+        super()._clear_error()
 
-    @on(Select.Changed, "#file_filter_select") # If FileFilter (Select widget) has this ID
+    @on(Select.Changed, "#file_filter_select")
     def _change_filter(self, event: Select.Changed) -> None:
-        """Handle a change in the filter.
-
-        Args:
-            event: The event to handle.
-        """
         if self._filters is not None and isinstance(event.value, int):
             self.query_one(DirectoryNavigation).file_filter = self._filters[event.value]
         else:
@@ -201,16 +165,12 @@ class BaseFileDialog(FileSystemPickerScreen):
         self.query_one(DirectoryNavigation).focus()
 
     def _validate_and_return_single_file(self, candidate: Path) -> bool:
-        """Validation hook for single file selection. To be implemented/extended by subclasses."""
         if not candidate.is_file():
             self._set_error(f"{self.ERROR_SELECTION_IS_NOT_A_FILE}: {candidate.name}")
             return False
         return True
 
     def _validate_and_return_multiple_files(self, candidates: List[Path]) -> bool:
-        """Called by _confirm_file for multiple file selection validation."""
-        # Similar to _validate_and_return_single_file, subclasses can override
-        # for more specific checks on each file in the list.
         for candidate in candidates:
             if not candidate.is_file():
                 self._set_error(f"{self.ERROR_SELECTION_IS_NOT_A_FILE}: {candidate.name}")
@@ -220,19 +180,15 @@ class BaseFileDialog(FileSystemPickerScreen):
     @on(Input.Submitted)
     @on(Button.Pressed, "#select")
     def _handle_select_button_press(self, event: Button.Pressed) -> None:
-        """Handle the main select ('Open', 'Save', etc.) button press."""
         event.stop()
         self._process_confirmation()
 
     @on(Input.Submitted, "#filename_input")
     def _handle_filename_input_submission(self, event: Input.Submitted) -> None:
-        """Handle submission from the filename input (if it exists)."""
         event.stop()
-        # This handler implies not self._allow_multiple because #filename_input would exist.
         self._process_confirmation()
 
     def _process_confirmation(self) -> None:
-        """Contains the core logic for confirming file/directory selections."""
         dir_nav = self.query_one(DirectoryNavigation)
 
         if self._allow_multiple:
@@ -242,13 +198,11 @@ class BaseFileDialog(FileSystemPickerScreen):
                 dir_nav.focus()
                 return
 
-            # Call the multi-file validation hook
             if self._validate_and_return_multiple_files(selected_files):
                 self.dismiss(result=selected_files)
             else:
-                # Error message should have been set by _validate_and_return_multiple_files
                 dir_nav.focus()
-        else: # Single file selection mode
+        else:
             try:
                 file_name_input = self.query_one("#filename_input", Input)
                 current_input_value = file_name_input.value
@@ -281,21 +235,17 @@ class BaseFileDialog(FileSystemPickerScreen):
                                 except Exception:
                                     pass
                         dir_nav.location = chosen
-                        file_name_input.value = "" # Clear input after navigation
+                        file_name_input.value = ""
                         dir_nav.focus()
                         return
                 except PermissionError:
                     self._set_error(self.ERROR_PERMISSION_ERROR); dir_nav.focus(); return
 
-                # If not a directory navigation, proceed to validate as a file
                 if self._validate_and_return_single_file(chosen):
                     self.dismiss(result=chosen)
                 else:
-                    # Error set by _validate_and_return_single_file
                     file_name_input.focus()
 
             except NoMatches:
                  self._set_error(self.ERROR_INPUT_NOT_FOUND)
-                 dir_nav.focus() # Fallback focus
-
-### file_dialog.py ends here
+                 dir_nav.focus()
